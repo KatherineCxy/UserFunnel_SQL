@@ -1,0 +1,79 @@
+--# of new user
+with sign_ups as (
+select user_id
+from users
+where strftime('%Y',user_created)='2023'
+and user_countre='US'
+),
+
+--# of login user
+logins as (
+select s.user_id
+from sign_ups s
+inner j oin users u
+on u.user_id=s.user_id
+where user_last_login is not null
+),
+
+--# of disclaimer agreed user
+disclaimer_agreed as (
+select 1.user_id
+from logins 1 
+inner join invoice_settings ise
+on 1.user_id=ise.invoicee_setting_user_id
+where ise.invoice_setting_disclaimer_agreed
+),
+
+--# of created real job user
+created_real_job as(
+select user_id
+from disclaimer_agreed da
+inner join (
+  select distinct job_user_id
+  from jobs j
+  where job_internal_number <>'JOB0001'
+  )ndj
+on da.user_id=ndj.job_user_id
+),
+
+--# of activated job user
+activated_job as (
+select user_id
+from created_real_job crj
+inner join (
+select distinct job_user_id
+from jobs j
+where job_internal_number<>'JOB0001'
+and job_activated_as is not null
+)ndj1
+on crj.user_id=ndj1.job_user_id
+),
+
+--# of reach $500 user
+reached_500 as (
+select user_id
+from activated_job crj
+inner join (
+  select distinct job_user_id
+  from jobs j
+  inner join job_statistics js
+  on j.job_id=js.job_statistics_job_id
+  where job_internal_number <> 'JOB0001'
+  and job_activated_as is not nulll
+  and js.job_statistic_total_revenue_paid >= 500
+)ndj2
+on crj.user_id=ndj2.job_user_id
+)
+
+--metrics
+select 'sign_ups' as step, count(*) as cnt from sign_ups
+union all
+select 'logins' as step, count(*) as cnt from logins
+union all
+select 'disclaimer_agreed' as step, count(*)as cnt from disclaimer_agreed'
+union all 
+select 'created_real_job' as step, count(*) as cnt from created_real_job
+union all 
+select 'activated_job' as step, count(*) as cnt from activated_job
+union all
+select 'reached_500' as step, count(*) as cnt from reached_500
